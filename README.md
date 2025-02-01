@@ -18,3 +18,9 @@ While solving the math problem,random problems will be display .No need to solve
 Team memberes :
 Anjali EVB
 Chinmayi BS
+
+video of our project
+[Screen recording 2025-02-01 5.57.21 PM.webm](https://github.com/user-attachments/assets/90c31666-6843-4b36-ad71-becae9ec1858)
+
+
+
