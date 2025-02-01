@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Alarm with To-Do List</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            background: #f0f2f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            flex-wrap: wrap;
+        }
+
+        .alarm-container, .todo-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            flex: 1;
+            min-width: 300px;
+        }
+
+        h1, h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: bold;
+        }
+
+        input[type="time"],
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .problem {
+            font-size: 24px;
+            margin: 20px 0;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        #answer-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .todo-list {
+            list-style: none;
+            margin-top: 20px;
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .todo-item.completed {
+            background: #e8f5e9;
+            text-decoration: line-through;
+            color: #666;
+        }
+
+        .todo-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 5px;
+        }
+
+        .todo-actions button {
+            width: auto;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        .delete-btn {
+            background: #e74c3c;
+        }
+
+        .complete-btn {
+            background: #2ecc71;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="alarm-container">
+            <h1>Smart Alarm</h1>
+            <div class="input-group">
+                <label for="alarm-time">Set Alarm Time</label>
+                <input type="time" id="alarm-time" required>
+            </div>
+            <div class="input-group">
+                <label for="alarm-sound">Choose Alarm Sound</label>
+                <input type="file" id="alarm-sound" accept="audio/*" required>
+            </div>
+            <button onclick="setAlarm()">Set Alarm</button>
+        </div>
+
+        <div class="todo-container">
+            <h2>Today's To-Do List</h2>
+            <div class="input-group">
+                <input type="text" id="todo-input" placeholder="Add a new task...">
+                <button onclick="addTodo()">Add Task</button>
+            </div>
+            <ul class="todo-list" id="todo-list"></ul>
+        </div>
+    </div>
+
+    <div class="modal" id="problem-modal">
+        <div class="modal-content">
+            <h2>Solve to Stop the Alarm!</h2>
+            <div class="problem" id="problem-text"></div>
+            <input type="number" id="answer-input" placeholder="Enter your answer">
+            <button onclick="checkAnswer()">Submit Answer</button>
+            <div class="status" id="status-message"></div>
+        </div>
+    </div>
+
+    <script>
+        let alarmTime;
+        let alarmAudio;
+        let currentProblem;
+        let alarmInterval;
+
+        // Load todos from localStorage when page loads
+        document.addEventListener('DOMContentLoaded', loadTodos);
+
+        function setAlarm() {
+            const timeInput = document.getElementById("alarm-time");
+            const soundInput = document.getElementById("alarm-sound");
+
+            if (!timeInput.value || !soundInput.files.length) {
+                alert("Please set both time and sound for the alarm!");
+                return;
+            }
+
+            alarmTime = timeInput.value;
+            alarmAudio = new Audio(URL.createObjectURL(soundInput.files[0]));
+            alert(`Alarm set for ${alarmTime}`);
+
+            startTimeCheck();
+        }
+
+        function startTimeCheck() {
+            if (alarmInterval) clearInterval(alarmInterval);
+
+            alarmInterval = setInterval(() => {
+                const now = new Date();
+                const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                if (currentTime === alarmTime) {
+                    triggerAlarm();
+                }
+            }, 1000);
+        }
+
+        function generateMathProblem() {
+            const num1 = Math.floor(Math.random() * 90) + 10;
+            const num2 = Math.floor(Math.random() * 90) + 10;
+            const operations = ['+', '-', '*'];
+            const operation = operations[Math.floor(Math.random() * operations.length)];
+            
+            let answer;
+            switch(operation) {
+                case '+':
+                    answer = num1 + num2;
+                    break;
+                case '-':
+                    answer = num1 - num2;
+                    break;
+                case '*':
+                    answer = num1 * num2;
+                    break;
+            }
+
+            return {
+                problem: `${num1} ${operation} ${num2}`,
+                answer: answer
+            };
+        }
+
+        function triggerAlarm() {
+            if (alarmAudio) {
+                alarmAudio.loop = true;
+                alarmAudio.play();
+            }
+
+            currentProblem = generateMathProblem();
+            document.getElementById("problem-text").textContent = currentProblem.problem;
+            document.getElementById("problem-modal").style.display = "flex";
+            document.getElementById("answer-input").value = "";
+            document.getElementById("answer-input").focus();
+        }
+
+        function checkAnswer() {
+            const userAnswer = parseInt(document.getElementById("answer-input").value);
+            const statusElement = document.getElementById("status-message");
+
+            if (userAnswer === currentProblem.answer) {
+                if (alarmAudio) {
+                    alarmAudio.pause();
+                    alarmAudio.currentTime = 0;
+                }
+                document.getElementById("problem-modal").style.display = "none";
+                alert("Correct! Time to check your to-do list!");
+            } else {
+                alert("Wrong answer! Try again.");
+                currentProblem = generateMathProblem();
+                document.getElementById("problem-text").textContent = currentProblem.problem;
+                document.getElementById("answer-input").value = "";
+                document.getElementById("answer-input").focus();
+            }
+        }
+
+        // Todo List Functions
+        function addTodo() {
+            const input = document.getElementById("todo-input");
+            const text = input.value.trim();
+
+            if (text) {
+                const todo = {
+                    id: Date.now(),
+                    text: text,
+                    completed: false,
+                    date: new Date().toLocaleDateString()
+                };
+
+                createTodoElement(todo);
+                saveTodos();
+                input.value = "";
+            }
+        }
+
+        function createTodoElement(todo) {
+            const li = document.createElement("li");
+            li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+            li.dataset.id = todo.id;
+
+            li.innerHTML = `
+                <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${todo.id})">
+                <span>${todo.text}</span>
+                <div class="todo-actions">
+                    <button class="complete-btn" onclick="toggleTodo(${todo.id})">
+                        ${todo.completed ? 'Undo' : 'Complete'}
+                    </button>
+                    <button class="delete-btn" onclick="deleteTodo(${todo.id})">Delete</button>
+                </div>
+            `;
+
+            document.getElementById("todo-list").appendChild(li);
+        }
+
+        function toggleTodo(id) {
+            const item = document.querySelector(`[data-id="${id}"]`);
+            item.classList.toggle("completed");
+            saveTodos();
+        }
+
+        function deleteTodo(id) {
+            const item = document.querySelector(`[data-id="${id}"]`);
+            item.remove();
+            saveTodos();
+        }
+
+        function saveTodos() {
+            const todos = [];
+            document.querySelectorAll('.todo-item').forEach(item => {
+                todos.push({
+                    id: parseInt(item.dataset.id),
+                    text: item.querySelector('span').textContent,
+                    completed: item.classList.contains('completed'),
+                    date: new Date().toLocaleDateString()
+                });
+            });
+            localStorage.setItem('todos', JSON.stringify(todos));
+        }
+
+        function loadTodos() {
+            const todos = JSON.parse(localStorage.getItem('todos')) || [];
+            const today = new Date().toLocaleDateString();
+            
+            // Only load today's todos
+            todos.filter(todo => todo.date === today)
+                 .forEach(todo => createTodoElement(todo));
+        }
+
+        // Add Enter key support for both alarm answer and todo input
+        document.getElementById("answer-input").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                checkAnswer();
+            }
+        });
+
+        document.getElementById("todo-input").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                addTodo();
+            }
+        });
+    </script>
+</body>
+</html>
